@@ -8,6 +8,6 @@ string value = 2;
 }
 
 // A message that contains a key-value pair vector
-message Message {
-KeyValue keyValues = 1;
+message ConfigMessage {
+repeated KeyValue keyValues = 1;
 }

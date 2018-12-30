@@ -4,7 +4,8 @@ extern crate prost;
 extern crate prost_derive;
 
 use zmq::{Context, Message, SocketType};
-use prost::Message;
+use prost::Message as ProtoMsg;
+use std::ops::Deref;
 
 // Include the `items` module, which is generated from items.proto.
 pub mod messages {
@@ -30,25 +31,38 @@ fn main() {
     }
 }
 
-fn client(ctx : &mut Context, addr : &str)
-{
+impl messages::ConfigMessage {
+	fn add_key_value<T: Into<String>>(&mut self, key : T, value : T) {
+		let mut key_value = messages::KeyValue::default();
+		key_value.key = key.into();
+		key_value.value = value.into();
+
+		println!("-> {} {}!", key_value.key, key_value.value);	
+
+		self.key_values.push(key_value);
+	}
+}
+
+
+fn client(ctx : &mut Context, addr : &str) {
 	let sock = ctx.socket(SocketType::REQ).unwrap();
 	let _ = sock.connect(addr).unwrap();
-	let mut message = messages::Message::default();
-	let mut key_value = messages::KeyValue::default();
-	key_value.key = "Hello".to_string();
-	key_value.value = "Dominique".to_string();
-	message.key_values = Some(key_value);
-	//let payload = "Hello dominique!".to_string();
-	println!("-> {} {}!", key_value.key, key_value.value);
-	let mut buf = Vec::new();
-	message.encode(buf);
+	let mut message = messages::ConfigMessage::default();
+	message.add_key_value("Hello", "Dominique");
+	message.add_key_value("Ca", "va ?");
+	
+	let mut buf = Vec::with_capacity(message.encoded_len());
+	message.encode(&mut buf).unwrap();
 	let msg = Message::from_slice(&buf);
-	//msg.data = payload.into_bytes();
 	let _ = sock.send(msg, 0);
 	if let Ok(msg) = sock.recv_msg(0) {
-	    let contents = msg.as_str().expect("Not a UTF-8 string");
-	    println!("<- {}", contents);
+		let message: messages::ConfigMessage = ProtoMsg::decode(msg.deref()).unwrap();
+		for kv in message.key_values.iter() {
+			println!("<- {} {}!", kv.key, kv.value);
+		}
+
+	    //let contents = msg.as_str().expect("Not a UTF-8 string");
+	    //println!("<- {}", contents);
 	}
 }
 
@@ -58,8 +72,11 @@ fn server(ctx : &mut Context, addr : &str)
 	let _ = sock.bind(addr).unwrap();
 	loop {
 	    if let Ok(msg) = sock.recv_msg(0) {
-		let contents = msg.as_str().expect("Not a UTF-8 string");
-		println!("<- {}", contents);
+		let message: messages::ConfigMessage = ProtoMsg::decode(msg.deref()).unwrap();
+		for kv in message.key_values.iter() {
+			println!("<- {} {}!", kv.key, kv.value);
+		}
+
 		let response = Message::from(msg);
 		let _ = sock.send(response, 0);
 	    }
