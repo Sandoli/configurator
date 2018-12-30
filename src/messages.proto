@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package configurator.messages;
+
+message KeyValue {
+string key = 1;
+string value = 2;
+}
+
+// A message that contains a key-value pair vector
+message Message {
+KeyValue keyValues = 1;
+}
